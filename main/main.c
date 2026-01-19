@@ -82,11 +82,6 @@ unsigned short gdb_port = 2345;
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
 
-#define EXAMPLE_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS
-#define EXAMPLE_ESP_WIFI_CHANNEL
-#define  EXAMPLE_MAX_STA_CONN
-
 #define AP_MODE 0
 
 //#ifndef AP_MODE
@@ -224,8 +219,8 @@ static void initialise_wifi(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .password = EXAMPLE_ESP_WIFI_PASS,
+            .ssid = CONFIG_WIFI_SSID,
+            .password = CONFIG_WIFI_PASSWORD,
             /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (pasword len => 8).
              * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
              * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to

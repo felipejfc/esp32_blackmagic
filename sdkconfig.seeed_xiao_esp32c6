@@ -629,8 +629,8 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Example Configuration
 #
-CONFIG_WIFI_SSID="myssid"
-CONFIG_WIFI_PASSWORD="myssid"
+CONFIG_WIFI_SSID="examplessid"
+CONFIG_WIFI_PASSWORD="examplepass"
 # end of Example Configuration
 
 #
