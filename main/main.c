@@ -38,6 +38,12 @@
 #include "rtt.h"
 #endif
 
+#ifdef PLATFORM_HAS_UART_PASSTHROUGH
+#include "uart_passthrough.h"
+#endif
+
+#include "web_server.h"
+
 
 #if __has_include("esp_idf_version.h")
 #include "esp_idf_version.h"
@@ -76,32 +82,29 @@ unsigned short gdb_port = 2345;
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
 
-#define EXAMPLE_WIFI_SSID "MYSSID"
-#define EXAMPLE_WIFI_PASS "mypassword"
+#define EXAMPLE_ESP_WIFI_SSID
+#define EXAMPLE_ESP_WIFI_PASS
+#define EXAMPLE_ESP_WIFI_CHANNEL
+#define  EXAMPLE_MAX_STA_CONN
 
-#define EXAMPLE_ESP_WIFI_SSID "blackmagic"
-#define EXAMPLE_ESP_WIFI_PASS "sesam1234"
-#define EXAMPLE_ESP_WIFI_CHANNEL  7
-#define  EXAMPLE_MAX_STA_CONN 3
+#define AP_MODE 0
 
-#define AP_MODE 1
-
-#ifndef AP_MODE
-#define USE_DHCP 1
-#ifndef USE_DHCP
-esp_netif_ip_info_t ip_info = {
-    .ip = {
-        .addr = ESP_IP4TOADDR(192, 168, 1, 22),
-    },
-    .gw = {
-        .addr = ESP_IP4TOADDR(192, 168, 1, 1),
-    },
-    .netmask = {
-        .addr = ESP_IP4TOADDR(255, 255, 255, 0),
-    },
-};
-#endif
-#endif
+//#ifndef AP_MODE
+//#define USE_DHCP 1
+//#ifndef USE_DHCP
+//esp_netif_ip_info_t ip_info = {
+//    .ip = {
+//        .addr = ESP_IP4TOADDR(192, 168, 1, 22),
+//    },
+//    .gw = {
+//        .addr = ESP_IP4TOADDR(192, 168, 1, 1),
+//    },
+//    .netmask = {
+//        .addr = ESP_IP4TOADDR(255, 255, 255, 0),
+//    },
+//};
+//#endif
+//#endif
 
 /* This has to be aligned so the remote protocol can re-use it without causing Problems */
 static char pbuf[GDB_PACKET_BUFFER_SIZE + 1U] __attribute__((aligned(8)));
@@ -127,9 +130,10 @@ static const char *TAG = "blackmagic";
 
 
 
-// extern 
+// extern
 void set_gdb_socket(int socket);
 void set_gdb_listen(int socket);
+bool gdb_if_is_connected(void);
 
 static int s_retry_num = 0;
 
@@ -183,7 +187,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-#ifndef AP_MODE
+//#ifndef AP_MODE
 static void initialise_wifi(void)
 {
     wifi_event_group = xEventGroupCreate();
@@ -193,13 +197,13 @@ static void initialise_wifi(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_t *netif = esp_netif_create_default_wifi_sta();
 
-#ifdef USE_DHCP
+//#ifdef USE_DHCP
     ESP_LOGI(TAG, "Getting IP addresses from DHCP");
-#else
-    ESP_LOGI(TAG, "Using hard-coded IP info");
-    esp_netif_dhcpc_stop(netif);
-    esp_netif_set_ip_info(netif, &ip_info);
-#endif
+//#else
+//    ESP_LOGI(TAG, "Using hard-coded IP info");
+//    esp_netif_dhcpc_stop(netif);
+//    esp_netif_set_ip_info(netif, &ip_info);
+//#endif
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     cfg.nvs_enable = true;
@@ -220,8 +224,8 @@ static void initialise_wifi(void)
 
     wifi_config_t wifi_config = {
         .sta = {
-            .ssid = EXAMPLE_WIFI_SSID,
-            .password = EXAMPLE_WIFI_PASS,
+            .ssid = EXAMPLE_ESP_WIFI_SSID,
+            .password = EXAMPLE_ESP_WIFI_PASS,
             /* Authmode threshold resets to WPA2 as default if password matches WPA2 standards (pasword len => 8).
              * If you want to connect the device to deprecated WEP/WPA networks, Please set the threshold value
              * to WIFI_AUTH_WEP/WIFI_AUTH_WPA_PSK and set the password with length and format matching to
@@ -241,55 +245,55 @@ static void initialise_wifi(void)
 
     ESP_LOGI(TAG, "wifi_init_sta finished.");
 }
-#else
-void wifi_init_softap(void)
-{
-
-    wifi_event_group = xEventGroupCreate();
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_ap();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        NULL));
-
-    wifi_config_t wifi_config = {
-        .ap = {
-            .ssid = EXAMPLE_ESP_WIFI_SSID,
-            .ssid_len = strlen(EXAMPLE_ESP_WIFI_SSID),
-            .channel = EXAMPLE_ESP_WIFI_CHANNEL,
-            .password = EXAMPLE_ESP_WIFI_PASS,
-            .max_connection = EXAMPLE_MAX_STA_CONN,
-//#ifdef CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT
-//            .authmode = WIFI_AUTH_WPA3_PSK,
-//            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
-//#else /* CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT */
-            .authmode = WIFI_AUTH_WPA2_PSK,
+//#else
+//void wifi_init_softap(void)
+//{
+//
+//    wifi_event_group = xEventGroupCreate();
+//
+//    ESP_ERROR_CHECK(esp_netif_init());
+//    ESP_ERROR_CHECK(esp_event_loop_create_default());
+//    esp_netif_create_default_wifi_ap();
+//
+//    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+//    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+//
+//    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
+//                                                        ESP_EVENT_ANY_ID,
+//                                                        &wifi_event_handler,
+//                                                        NULL,
+//                                                        NULL));
+//
+//    wifi_config_t wifi_config = {
+//        .ap = {
+//            .ssid = EXAMPLE_ESP_WIFI_SSID,
+//            .ssid_len = strlen(EXAMPLE_ESP_WIFI_SSID),
+//            .channel = EXAMPLE_ESP_WIFI_CHANNEL,
+//            .password = EXAMPLE_ESP_WIFI_PASS,
+//            .max_connection = EXAMPLE_MAX_STA_CONN,
+////#ifdef CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT
+////            .authmode = WIFI_AUTH_WPA3_PSK,
+////            .sae_pwe_h2e = WPA3_SAE_PWE_BOTH,
+////#else /* CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT */
+//            .authmode = WIFI_AUTH_WPA2_PSK,
+////#endif
+//            .pmf_cfg = {
+//                    .required = true,
+//            },
+//        },
+//    };
+//    if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
+//        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+//    }
+//
+//    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+//    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+//    ESP_ERROR_CHECK(esp_wifi_start());
+//
+//    ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
+//             EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS, EXAMPLE_ESP_WIFI_CHANNEL);
+//}
 //#endif
-            .pmf_cfg = {
-                    .required = true,
-            },
-        },
-    };
-    if (strlen(EXAMPLE_ESP_WIFI_PASS) == 0) {
-        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
-    }
-
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
-             EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS, EXAMPLE_ESP_WIFI_CHANNEL);
-}
-#endif
 
 void old_gdb_application_thread(void *pvParameters)
 {
@@ -328,8 +332,13 @@ void old_gdb_application_thread(void *pvParameters)
 
 static void bmp_poll_loop(void)
 {
+	if (!gdb_if_is_connected())
+		return;
+
 	SET_IDLE_STATE(false);
 	while (gdb_target_running && cur_target) {
+		if (!gdb_if_is_connected())
+			return;
 		gdb_poll_target();
 
 		// Check again, as `gdb_poll_target()` may
@@ -346,8 +355,13 @@ static void bmp_poll_loop(void)
 #endif
 	}
 
+	if (!gdb_if_is_connected())
+		return;
+
 	SET_IDLE_STATE(true);
 	size_t size = gdb_getpacket(pbuf, GDB_PACKET_BUFFER_SIZE);
+	if (!gdb_if_is_connected())
+		return;
 	// If port closed and target detached, stay idle
 	if (pbuf[0] != '\x04' || cur_target)
 		SET_IDLE_STATE(false);
@@ -410,7 +424,7 @@ static void bad_bmp_poll_loop(void)
 
 static void main_loop(void)
 {
-     while (1) {
+     while (gdb_if_is_connected()) {
 		volatile exception_s e;
 		TRY_CATCH (e, EXCEPTION_ALL) {
 			bmp_poll_loop();
@@ -422,7 +436,7 @@ static void main_loop(void)
 			morse("TARGET LOST.", true);
 		}
      }
-
+     ESP_LOGI(TAG, "GDB connection closed, waiting for new connection");
 }
 
 
@@ -500,14 +514,10 @@ static void gdb_application_thread(void *pvParameters)
         printf("accepted new gdb connection\n");
         set_gdb_socket(sock);
         main_loop();
-        //bmp_poll_loop();
 
-        //SET_IDLE_STATE(true);
-        //size_t size =  gdb_getpacket(pbuf, GDB_PACKET_BUFFER_SIZE);
-        // If port closed and target detached, stay idle
-	    //if (pbuf[0] != '\x04' || cur_target)
-		//    SET_IDLE_STATE(false);
-        //gdb_main(pbuf, GDB_PACKET_BUFFER_SIZE, size);
+        // Clean up after connection closed
+        close(sock);
+        ESP_LOGI(TAG, "GDB socket closed, ready for new connection");
     }
 
 CLEAN_UP:
@@ -531,13 +541,13 @@ void app_main()
 
     ESP_ERROR_CHECK( ret );
 
-#ifndef AP_MODE
+//#ifndef AP_MODE
     ESP_LOGI(TAG, "Normal wifi mode");
     initialise_wifi();
-#else
-    ESP_LOGI(TAG, "Soft AP mode");
-    wifi_init_softap();
-#endif
+//#else
+    //ESP_LOGI(TAG, "Soft AP mode");
+    //wifi_init_softap();
+//#endif
 
 	xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT,
 						false, true, portMAX_DELAY);
@@ -557,6 +567,12 @@ void app_main()
 	ESP_LOGI(TAG, "Connected to AP");
 
 	platform_init();
+
+#ifdef PLATFORM_HAS_UART_PASSTHROUGH
+	uart_passthrough_init();
+#endif
+
+	web_server_init();
 
     xTaskCreate(&gdb_application_thread, "gdb_thread", 4*4096, NULL, 17, NULL);
 

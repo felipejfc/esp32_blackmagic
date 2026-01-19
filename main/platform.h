@@ -47,46 +47,57 @@
 // No ports on the ESP32
 #define TDI_PORT  0
 
-// https://docs.espressif.com/projects/esp-idf/en/latest/esp32s3/api-reference/peripherals/gpio.html
+// XIAO ESP32-C6 pinout:
+// D0=GPIO0, D1=GPIO1, D2=GPIO2, D3=GPIO21, D4=GPIO22, D5=GPIO23
+// D6=GPIO16, D7=GPIO17, D8=GPIO19, D9=GPIO20, D10=GPIO18
 
-#define TMS_PIN (8) // On wroover module, pin 17  is PSRAM clock
-#define TDI_PIN (11) // 
-#define TDO_PIN (9) // 
-#define TCK_PIN (10) // 
+#define TMS_PIN (2)   // D2 = GPIO2
+#define TDI_PIN (0)   // D0 = GPIO0
+#define TDO_PIN (21)  // D3 = GPIO21
+#define TCK_PIN (1)   // D1 = GPIO1
 #endif
 
-// Good pins for tes ESP32C3-devkit-m
-#define SWDIO_PIN  (8)
-#define SWCLK_PIN  (10)
-
-// Good pins for tes ESP32C3-devkit-c-02
-//#define SWDIO_PIN  (6)
-//TMS_PIN
-//#define SWCLK_PIN  (7)
+// Pins for XIAO ESP32-C6
+#define SWDIO_PIN  (2)   // D2 = GPIO2 (directly on header)
+#define SWCLK_PIN  (1)   // D1 = GPIO1 (directly on header)
 
 
 
 #define NRST_PORT 0
-#define NRST_PIN  (22)
+#define NRST_PIN  (22)  // D4 = GPIO22
 
 
 // On the ESP32 we dont have the PORTS (unlike stm32), this is dummy value to keep things similar as other platforms
 #define SWCLK_PORT  0
 #define SWDIO_PORT  0
 
-/* These are used for input JTAG 
-2 	MTDO / GPIO15 	TDO
-3 	MTDI / GPIO12 	TDI
-4 	MTCK / GPIO13 	TCK
-5 	MTMS / GPIO14 	TMS
-*/
-#define PLATFORM_IDENT "(ESP32C3)"
+/* XIAO ESP32-C6 pin mapping for JTAG/SWD:
+ * D0 = GPIO0  -> TDI
+ * D1 = GPIO1  -> TCK/SWCLK
+ * D2 = GPIO2  -> TMS/SWDIO
+ * D3 = GPIO21 -> TDO
+ * D4 = GPIO22 -> NRST
+ * D5 = GPIO23 -> TRACESWO (optional)
+ * D6 = GPIO16 -> TARGET_UART_TX (connect to target's RX)
+ * D7 = GPIO17 -> TARGET_UART_RX (connect to target's TX)
+ * D8 = GPIO19 -> (free)
+ * D9 = GPIO20 -> (free)
+ * D10= GPIO18 -> TRACESWO_DUMMY_TX
+ */
+#define PLATFORM_IDENT "(ESP32C6)"
 #define PLATFORM_HAS_TRACESWO 1
 #define TRACESWO_PROTOCOL  2
 
-#define TRACESWO_PIN 6
+#define TRACESWO_PIN 23       // D5 = GPIO23
 // Workaround for driver
-#define TRACESWO_DUMMY_TX 4
+#define TRACESWO_DUMMY_TX 18  // D10 = GPIO18
+
+// UART passthrough pins (directly on header)
+#define PLATFORM_HAS_UART_PASSTHROUGH 1
+#define TARGET_UART_TX_PIN  16  // D6 = GPIO16 (connect to target's RX)
+#define TARGET_UART_RX_PIN  17  // D7 = GPIO17 (connect to target's TX)
+#define TARGET_UART_PORT    1   // Use UART1 (UART0 is for console)
+#define TARGET_UART_BAUD    115200
 
 
 #define gpio_set_val(port, pin, value) do {	\

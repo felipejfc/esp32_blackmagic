@@ -49,14 +49,19 @@ extern target_s *cur_target;
 
 static int gdb_if_serv, gdb_if_conn;
 
-void set_gdb_socket(int socket) 
+void set_gdb_socket(int socket)
 {
 	gdb_if_conn=socket;
 }
 
-void set_gdb_listen(int socket) 
+void set_gdb_listen(int socket)
 {
 	gdb_if_serv=socket;
+}
+
+bool gdb_if_is_connected(void)
+{
+	return gdb_if_conn > 0;
 }
 
 

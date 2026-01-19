@@ -1,0 +1,12 @@
+# Enable WebSocket support for HTTP server
+CONFIG_HTTPD_WS_SUPPORT=y
+
+# Use larger app partition (2MB instead of 1MB)
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+CONFIG_PARTITION_TABLE_SINGLE_APP=n
+
+# Set correct flash size (4MB)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# Disable IDLE task watchdog - GDB thread can block during debug operations
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
