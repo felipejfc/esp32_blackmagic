@@ -401,7 +401,7 @@ static void bad_bmp_poll_loop(void)
             if (cur_target) printf("halting\n");
             int retries=6;
 
-            target_addr_t watch;
+            target_addr64_t watch;
 	        target_halt_reason_e reason = target_halt_poll(cur_target, &watch);
 	        while (!reason && retries-->0) {
                 reason = target_halt_poll(cur_target, &watch);
@@ -420,15 +420,16 @@ static void bad_bmp_poll_loop(void)
 static void main_loop(void)
 {
      while (gdb_if_is_connected()) {
-		volatile exception_s e;
-		TRY_CATCH (e, EXCEPTION_ALL) {
+		TRY (EXCEPTION_ALL) {
 			bmp_poll_loop();
 		}
-		if (e.type) {
+		CATCH () {
+		default:
 			gdb_putpacketz("EFF");
 			target_list_free();
-			gdb_outf("Uncaught exception: %s\n", e.msg);
+			gdb_outf("Uncaught exception: %s\n", exception_frame.msg);
 			morse("TARGET LOST.", true);
+			break;
 		}
      }
      ESP_LOGI(TAG, "GDB connection closed, waiting for new connection");

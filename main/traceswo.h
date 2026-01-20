@@ -21,7 +21,12 @@
 #ifndef PLATFORMS_COMMON_TRACESWO_H
 #define PLATFORMS_COMMON_TRACESWO_H
 
-#include <libopencm3/usb/usbd.h>
+#include <stdint.h>
+
+/* Only define usbd_device if libopencm3's usbd.h hasn't been included already */
+#ifndef __USBD_H
+typedef void usbd_device;
+#endif
 
 //#if defined TRACESWO_PROTOCOL && TRACESWO_PROTOCOL == 2
 /* Default line rate, used as default for a request without baudrate */

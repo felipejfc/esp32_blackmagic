@@ -627,9 +627,9 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
-# Example Configuration
+# Wi-Fi Configuration
 #
-CONFIG_WIFI_SSID="examplessid"
+CONFIG_WIFI_SSID="Example SSID"
 CONFIG_WIFI_PASSWORD="examplepass"
 # end of Example Configuration
 

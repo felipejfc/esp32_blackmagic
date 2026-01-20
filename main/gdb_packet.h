@@ -24,6 +24,22 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
+
+/* Allow override in other platforms if needed */
+#ifndef GDB_PACKET_BUFFER_SIZE
+#define GDB_PACKET_BUFFER_SIZE 1024U
+#endif
+
+/*
+ * GDB packet structure
+ * Used by upstream semihosting and other functions
+ */
+typedef struct gdb_packet {
+	char data[GDB_PACKET_BUFFER_SIZE + 1U];
+	size_t size;
+	bool notification;
+} gdb_packet_s;
 
 #define GDB_PACKET_START              '$'
 #define GDB_PACKET_END                '#'
@@ -46,5 +62,9 @@ void gdb_put_notification(const char *packet, size_t size);
 void gdb_out(const char *buf);
 void gdb_voutf(const char *fmt, va_list);
 void gdb_outf(const char *fmt, ...);
+
+/* Functions needed by upstream semihosting */
+gdb_packet_s *gdb_packet_receive(void);
+void gdb_putpacket_str_f(const char *fmt, ...);
 
 #endif /* INCLUDE_GDB_PACKET_H */

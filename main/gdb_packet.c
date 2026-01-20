@@ -85,7 +85,7 @@ packet_state_e consume_remote_packet(char *const packet, const size_t size)
 			/* Null terminate packet */
 			packet[offset] = '\0';
 			/* Handle packet */
-			remote_packet_process(offset, packet);
+			remote_packet_process(packet, offset);
 
 			/* Restart packet capture */
 			packet[0] = '\0';
@@ -244,6 +244,15 @@ size_t gdb_getpacket(char *const packet, const size_t size)
 	}
 }
 
+gdb_packet_s *gdb_packet_receive(void)
+{
+	static gdb_packet_s packet;
+
+	packet.notification = false;
+	packet.size = gdb_getpacket(packet.data, GDB_PACKET_BUFFER_SIZE);
+	return &packet;
+}
+
 static void gdb_next_char(const char value, uint8_t *const csum)
 {
 	if (value >= ' ' && value < '\x7f')
@@ -320,6 +329,19 @@ void gdb_put_notification(const char *const packet, const size_t size)
 }
 
 void gdb_putpacket_f(const char *const fmt, ...)
+{
+	va_list ap;
+	char *buf;
+
+	va_start(ap, fmt);
+	const int size = vasprintf(&buf, fmt, ap);
+	if (size > 0)
+		gdb_putpacket(buf, size);
+	free(buf);
+	va_end(ap);
+}
+
+void gdb_putpacket_str_f(const char *const fmt, ...)
 {
 	va_list ap;
 	char *buf;

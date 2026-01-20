@@ -92,9 +92,9 @@ int gdb_if_init(void)
 }
 
 
-unsigned char gdb_if_getchar(void)
+char gdb_if_getchar(void)
 {
-	unsigned char ret;
+	char ret;
 	int i = 0;
 
 	while(i <= 0) {
@@ -126,12 +126,13 @@ unsigned char gdb_if_getchar(void)
 	return ret;
 }
 
-unsigned char gdb_if_getchar_to(uint32_t timeout)
+char gdb_if_getchar_to(uint32_t timeout)
 {
 	fd_set fds;
 	struct timeval tv;
 
-	if(gdb_if_conn == -1) return -1;
+	if (gdb_if_conn == -1)
+		return (char)-1;
 
 	tv.tv_sec = timeout / 1000;
 	tv.tv_usec = (timeout % 1000) * 1000;
@@ -139,24 +140,32 @@ unsigned char gdb_if_getchar_to(uint32_t timeout)
 	FD_ZERO(&fds);
 	FD_SET(gdb_if_conn, &fds);
 
-	if(select(gdb_if_conn+1, &fds, NULL, NULL, &tv) > 0)
+	if (select(gdb_if_conn + 1, &fds, NULL, NULL, &tv) > 0)
 		return gdb_if_getchar();
 
 	return 0;
 }
 
 static uint8_t buf[2048];
-static int bufsize = 0;
+static size_t bufsize = 0;
 
-void gdb_if_putchar(char c, int flush)
+void gdb_if_flush(const bool force)
 {
-	if (gdb_if_conn > 0) {
-		buf[bufsize++] = c;
-		if (flush || (bufsize == sizeof(buf))) {
-			buf[bufsize]=0;
-			//printf("%s\n",buf);
-			send(gdb_if_conn, buf, bufsize, 0);
-			bufsize = 0;
-		}
-	}
+	if (gdb_if_conn <= 0 || bufsize == 0)
+		return;
+	if (!force && bufsize < sizeof(buf))
+		return;
+
+	send(gdb_if_conn, buf, bufsize, 0);
+	bufsize = 0;
+}
+
+void gdb_if_putchar(char c, bool flush)
+{
+	if (gdb_if_conn <= 0)
+		return;
+
+	buf[bufsize++] = (uint8_t)c;
+	if (flush || bufsize == sizeof(buf))
+		gdb_if_flush(true);
 }

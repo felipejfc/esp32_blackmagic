@@ -21,11 +21,15 @@
 #ifndef __PLATFORM_H
 #define __PLATFORM_H
 
+/* On ESP32-C6 (RISC-V), uint32_t is long unsigned int */
 #undef PRIx32
-#define PRIx32 "x"
+#define PRIx32 "lx"
+
+#undef PRIu32
+#define PRIu32 "lu"
 
 #undef SCNx32
-#define SCNx32 "x"
+#define SCNx32 "lx"
 
 #define NO_USB_PLEASE
 
@@ -87,6 +91,10 @@
 #define PLATFORM_IDENT "(ESP32C6)"
 #define PLATFORM_HAS_TRACESWO 1
 #define TRACESWO_PROTOCOL  2
+#define SWO_ENCODING 2  /* UART mode for upstream command.c */
+
+/* Enable platform-specific custom commands (uart_scan, uart_send) */
+#define PLATFORM_HAS_CUSTOM_COMMANDS 1
 
 #define TRACESWO_PIN 23       // D5 = GPIO23
 // Workaround for driver

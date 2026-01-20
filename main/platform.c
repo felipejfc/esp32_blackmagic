@@ -145,20 +145,21 @@ void main_task(void *parameters)
 
 	while (true) {
 
-		volatile struct exception e;
-		TRY_CATCH(e, EXCEPTION_ALL) {
-  			    char* pbuf=gdb_packet_buffer();
-			    SET_IDLE_STATE(true);
-				size_t size = gdb_getpacket(pbuf, GDB_PACKET_BUFFER_SIZE);
-				// If port closed and target detached, stay idle				
-				if (pbuf[0] != '\x04' || cur_target)
-					SET_IDLE_STATE(false);
-				gdb_main(pbuf, GDB_PACKET_BUFFER_SIZE, size);
-			}
-		if (e.type) {
+		TRY (EXCEPTION_ALL) {
+			char* pbuf=gdb_packet_buffer();
+			SET_IDLE_STATE(true);
+			size_t size = gdb_getpacket(pbuf, GDB_PACKET_BUFFER_SIZE);
+			// If port closed and target detached, stay idle
+			if (pbuf[0] != '\x04' || cur_target)
+				SET_IDLE_STATE(false);
+			gdb_main(pbuf, GDB_PACKET_BUFFER_SIZE, size);
+		}
+		CATCH () {
+		default:
 			gdb_putpacketz("EFF");
 			target_list_free();
 			morse("TARGET LOST.", 1);
+			break;
 		}
 	}
 

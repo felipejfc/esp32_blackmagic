@@ -156,7 +156,7 @@
 
 typedef struct esp32c3_priv {
 	uint32_t wdt_config[4];
-	target_addr_t last_invalidated_sector;
+	target_addr32_t last_invalidated_sector;
 } esp32c3_priv_s;
 
 typedef struct esp32c3_spi_flash {
@@ -169,13 +169,13 @@ static void esp32c3_disable_wdts(target_s *target);
 static void esp32c3_restore_wdts(target_s *target);
 static void esp32c3_halt_request(target_s *target);
 static void esp32c3_halt_resume(target_s *target, bool step);
-static target_halt_reason_e esp32c3_halt_poll(target_s *target, target_addr_t *watch);
+static target_halt_reason_e esp32c3_halt_poll(target_s *target, target_addr64_t *watch);
 
 static void esp32c3_spi_read(target_s *target, uint32_t command, target_addr_t address, void *buffer, size_t length);
 static void esp32c3_spi_write(
 	target_s *target, uint32_t command, target_addr_t address, const void *buffer, size_t length);
 
-static bool esp32c3_mass_erase(target_s *target);
+static bool esp32c3_mass_erase(target_s *target, platform_timeout_s *print_progress);
 static bool esp32c3_enter_flash_mode(target_s *target);
 static bool esp32c3_exit_flash_mode(target_s *target);
 static bool esp32c3_spi_flash_erase(target_flash_s *flash, target_addr_t addr, size_t length);
@@ -249,10 +249,10 @@ bool esp32c3_probe(target_s *const target)
 	target->exit_flash_mode = esp32c3_exit_flash_mode;
 
 	/* Establish the target RAM mappings */
-	target_add_ram(target, ESP32_C3_IBUS_SRAM0_BASE, ESP32_C3_IBUS_SRAM0_SIZE);
-	target_add_ram(target, ESP32_C3_IBUS_SRAM1_BASE, ESP32_C3_IBUS_SRAM1_SIZE);
-	target_add_ram(target, ESP32_C3_DBUS_SRAM1_BASE, ESP32_C3_DBUS_SRAM1_SIZE);
-	target_add_ram(target, ESP32_C3_RTC_SRAM_BASE, ESP32_C3_RTC_SRAM_SIZE);
+	target_add_ram32(target, ESP32_C3_IBUS_SRAM0_BASE, ESP32_C3_IBUS_SRAM0_SIZE);
+	target_add_ram32(target, ESP32_C3_IBUS_SRAM1_BASE, ESP32_C3_IBUS_SRAM1_SIZE);
+	target_add_ram32(target, ESP32_C3_DBUS_SRAM1_BASE, ESP32_C3_DBUS_SRAM1_SIZE);
+	target_add_ram32(target, ESP32_C3_RTC_SRAM_BASE, ESP32_C3_RTC_SRAM_SIZE);
 
 	/* Establish the target Flash mappings */
 	esp32c3_add_flash(target);
@@ -263,38 +263,38 @@ static void esp32c3_disable_wdts(target_s *const target)
 {
 	esp32c3_priv_s *const priv = (esp32c3_priv_s *)target->target_storage;
 	/* Disable Timer Group 0's WDT */
-	target_mem_write32(target, ESP32_C3_TIMG0_WDT_WRITE_PROT, ESP32_C3_WDT_WRITE_PROT_KEY);
-	priv->wdt_config[0] = target_mem_read32(target, ESP32_C3_TIMG0_WDT_CONFIG0);
-	target_mem_write32(target, ESP32_C3_TIMG0_WDT_CONFIG0, 0U);
+	target_mem32_write32(target, ESP32_C3_TIMG0_WDT_WRITE_PROT, ESP32_C3_WDT_WRITE_PROT_KEY);
+	priv->wdt_config[0] = target_mem32_read32(target, ESP32_C3_TIMG0_WDT_CONFIG0);
+	target_mem32_write32(target, ESP32_C3_TIMG0_WDT_CONFIG0, 0U);
 	/* Disable Timer Group 1's WDT */
-	target_mem_write32(target, ESP32_C3_TIMG1_WDT_WRITE_PROT, ESP32_C3_WDT_WRITE_PROT_KEY);
-	priv->wdt_config[1] = target_mem_read32(target, ESP32_C3_TIMG1_WDT_CONFIG0);
-	target_mem_write32(target, ESP32_C3_TIMG1_WDT_CONFIG0, 0U);
+	target_mem32_write32(target, ESP32_C3_TIMG1_WDT_WRITE_PROT, ESP32_C3_WDT_WRITE_PROT_KEY);
+	priv->wdt_config[1] = target_mem32_read32(target, ESP32_C3_TIMG1_WDT_CONFIG0);
+	target_mem32_write32(target, ESP32_C3_TIMG1_WDT_CONFIG0, 0U);
 	/* Disable the RTC WDT */
-	target_mem_write32(target, ESP32_C3_RTC_WDT_WRITE_PROT, ESP32_C3_WDT_WRITE_PROT_KEY);
-	priv->wdt_config[2] = target_mem_read32(target, ESP32_C3_RTC_WDT_CONFIG0);
-	target_mem_write32(target, ESP32_C3_RTC_WDT_CONFIG0, 0U);
+	target_mem32_write32(target, ESP32_C3_RTC_WDT_WRITE_PROT, ESP32_C3_WDT_WRITE_PROT_KEY);
+	priv->wdt_config[2] = target_mem32_read32(target, ESP32_C3_RTC_WDT_CONFIG0);
+	target_mem32_write32(target, ESP32_C3_RTC_WDT_CONFIG0, 0U);
 	/* Disable the "super" WDT */
-	target_mem_write32(target, ESP32_C3_RTC_SWD_WRITE_PROT, ESP32_C3_RTC_SWD_WRITE_PROT_KEY);
-	priv->wdt_config[3] = target_mem_read32(target, ESP32_C3_RTC_SWD_CONFIG);
-	target_mem_write32(target, ESP32_C3_RTC_SWD_CONFIG, ESP32_C3_RTC_SWD_CONFIG_DISABLE);
+	target_mem32_write32(target, ESP32_C3_RTC_SWD_WRITE_PROT, ESP32_C3_RTC_SWD_WRITE_PROT_KEY);
+	priv->wdt_config[3] = target_mem32_read32(target, ESP32_C3_RTC_SWD_CONFIG);
+	target_mem32_write32(target, ESP32_C3_RTC_SWD_CONFIG, ESP32_C3_RTC_SWD_CONFIG_DISABLE);
 }
 
 static void esp32c3_restore_wdts(target_s *const target)
 {
 	esp32c3_priv_s *const priv = (esp32c3_priv_s *)target->target_storage;
 	/* Restore Timger Group 0's WDT */
-	target_mem_write32(target, ESP32_C3_TIMG0_WDT_CONFIG0, priv->wdt_config[0]);
-	target_mem_write32(target, ESP32_C3_TIMG0_WDT_WRITE_PROT, 0U);
+	target_mem32_write32(target, ESP32_C3_TIMG0_WDT_CONFIG0, priv->wdt_config[0]);
+	target_mem32_write32(target, ESP32_C3_TIMG0_WDT_WRITE_PROT, 0U);
 	/* Restore Timger Group 1's WDT */
-	target_mem_write32(target, ESP32_C3_TIMG1_WDT_CONFIG0, priv->wdt_config[1]);
-	target_mem_write32(target, ESP32_C3_TIMG1_WDT_WRITE_PROT, 0U);
+	target_mem32_write32(target, ESP32_C3_TIMG1_WDT_CONFIG0, priv->wdt_config[1]);
+	target_mem32_write32(target, ESP32_C3_TIMG1_WDT_WRITE_PROT, 0U);
 	/* Restore the RTC WDT */
-	target_mem_write32(target, ESP32_C3_RTC_WDT_CONFIG0, priv->wdt_config[2]);
-	target_mem_write32(target, ESP32_C3_RTC_WDT_WRITE_PROT, 0U);
+	target_mem32_write32(target, ESP32_C3_RTC_WDT_CONFIG0, priv->wdt_config[2]);
+	target_mem32_write32(target, ESP32_C3_RTC_WDT_WRITE_PROT, 0U);
 	/* Restore the "super" WDT */
-	target_mem_write32(target, ESP32_C3_RTC_SWD_CONFIG, priv->wdt_config[2]);
-	target_mem_write32(target, ESP32_C3_RTC_SWD_WRITE_PROT, 0U);
+	target_mem32_write32(target, ESP32_C3_RTC_SWD_CONFIG, priv->wdt_config[2]);
+	target_mem32_write32(target, ESP32_C3_RTC_SWD_WRITE_PROT, 0U);
 }
 
 static void esp32c3_halt_request(target_s *const target)
@@ -310,7 +310,7 @@ static void esp32c3_halt_resume(target_s *const target, const bool step)
 	riscv_halt_resume(target, step);
 }
 
-static target_halt_reason_e esp32c3_halt_poll(target_s *const target, target_addr_t *const watch)
+static target_halt_reason_e esp32c3_halt_poll(target_s *const target, target_addr64_t *const watch)
 {
 	const target_halt_reason_e reason = riscv_halt_poll(target, watch);
 	if (reason == TARGET_HALT_BREAKPOINT)
@@ -326,12 +326,12 @@ static uint32_t esp32c3_spi_config(
 
 	/* Set up the command phase */
 	const uint8_t spi_command = command & ESP32_C3_SPI_FLASH_OPCODE_MASK;
-	target_mem_write32(target, ESP32_C3_SPI1_USER2, ESP32_C3_SPI_USER2_CMD_LEN(8) | spi_command);
+	target_mem32_write32(target, ESP32_C3_SPI1_USER2, ESP32_C3_SPI_USER2_CMD_LEN(8) | spi_command);
 
 	/* Configure the address to send */
 	if ((command & ESP32_C3_SPI_FLASH_OPCODE_MODE_MASK) == ESP32_C3_SPI_FLASH_OPCODE_3B_ADDR) {
 		enabled_stages |= ESP32_C3_SPI_USER0_ADDR;
-		target_mem_write32(target, ESP32_C3_SPI1_ADDR, address);
+		target_mem32_write32(target, ESP32_C3_SPI1_ADDR, address);
 		user1_value |= ESP32_C3_SPI_USER1_ADDR_LEN(24U);
 	}
 
@@ -351,16 +351,16 @@ static uint32_t esp32c3_spi_config(
 	}
 
 	/* Now we've defined all the information needed for user0 and user1, send it */
-	target_mem_write32(target, ESP32_C3_SPI1_USER1, user1_value);
+	target_mem32_write32(target, ESP32_C3_SPI1_USER1, user1_value);
 	return enabled_stages;
 }
 
 static void esp32c3_spi_wait_complete(target_s *const target)
 {
 	/* Now trigger the configured transaction */
-	target_mem_write32(target, ESP32_C3_SPI1_CMD, ESP32_C3_SPI_CMD_EXEC_XFER);
+	target_mem32_write32(target, ESP32_C3_SPI1_CMD, ESP32_C3_SPI_CMD_EXEC_XFER);
 	/* And wait for the transaction to complete */
-	while (target_mem_read32(target, ESP32_C3_SPI1_CMD) & ESP32_C3_SPI_CMD_EXEC_XFER)
+	while (target_mem32_read32(target, ESP32_C3_SPI1_CMD) & ESP32_C3_SPI_CMD_EXEC_XFER)
 		continue;
 }
 
@@ -370,7 +370,7 @@ static void esp32c3_spi_read(
 	/* Start by setting up the common components of the transaction */
 	const uint32_t enabled_stages = esp32c3_spi_config(target, command, address, length);
 	uint8_t *const data = (uint8_t *)buffer;
-	const uint32_t misc_reg = target_mem_read32(target, ESP32_C3_SPI1_MISC) & ~ESP32_C3_SPI_MISC_CS_HOLD;
+	const uint32_t misc_reg = target_mem32_read32(target, ESP32_C3_SPI1_MISC) & ~ESP32_C3_SPI_MISC_CS_HOLD;
 	/*
 	 * The transfer has to proceed in no more than 64 bytes at a time because that's
 	 * how many data registers are available in the SPI peripheral
@@ -378,24 +378,24 @@ static void esp32c3_spi_read(
 	for (size_t offset = 0U; offset < length; offset += 64U) {
 		const uint32_t amount = MIN(length - offset, 64U);
 		/* Tell the controller how many bytes we want received in this transaction */
-		target_mem_write32(target, ESP32_C3_SPI1_DATA_IN_LEN, ESP32_C3_SPI_DATA_BIT_LEN(amount));
+		target_mem32_write32(target, ESP32_C3_SPI1_DATA_IN_LEN, ESP32_C3_SPI_DATA_BIT_LEN(amount));
 		/* Configure which transaction stages to use */
 		if (offset)
-			target_mem_write32(target, ESP32_C3_SPI1_USER0, ESP32_C3_SPI_USER0_DATA_IN);
+			target_mem32_write32(target, ESP32_C3_SPI1_USER0, ESP32_C3_SPI_USER0_DATA_IN);
 		else
-			target_mem_write32(target, ESP32_C3_SPI1_USER0, enabled_stages);
+			target_mem32_write32(target, ESP32_C3_SPI1_USER0, enabled_stages);
 
 		/* On the final transfer, clear the chip select hold bit, otherwise set it */
 		if (length - offset == amount)
-			target_mem_write32(target, ESP32_C3_SPI1_MISC, misc_reg);
+			target_mem32_write32(target, ESP32_C3_SPI1_MISC, misc_reg);
 		else
-			target_mem_write32(target, ESP32_C3_SPI1_MISC, misc_reg | ESP32_C3_SPI_MISC_CS_HOLD);
+			target_mem32_write32(target, ESP32_C3_SPI1_MISC, misc_reg | ESP32_C3_SPI_MISC_CS_HOLD);
 
 		/* Run the transaction */
 		esp32c3_spi_wait_complete(target);
 
 		/* Extract and unpack the received data */
-		target_mem_read(target, data + offset, ESP32_C3_SPI1_DATA, amount);
+		target_mem32_read(target, data + offset, ESP32_C3_SPI1_DATA, amount);
 	}
 }
 
@@ -405,7 +405,7 @@ static void esp32c3_spi_write(target_s *const target, const uint32_t command, co
 	/* Start by setting up the common components of the transaction */
 	const uint32_t enabled_stages = esp32c3_spi_config(target, command, address, length);
 	const uint8_t *const data = (const uint8_t *)buffer;
-	const uint32_t misc_reg = target_mem_read32(target, ESP32_C3_SPI1_MISC) & ~ESP32_C3_SPI_MISC_CS_HOLD;
+	const uint32_t misc_reg = target_mem32_read32(target, ESP32_C3_SPI1_MISC) & ~ESP32_C3_SPI_MISC_CS_HOLD;
 
 	/*
 	 * The transfer has to proceed in no more than 64 bytes at a time because that's
@@ -414,21 +414,21 @@ static void esp32c3_spi_write(target_s *const target, const uint32_t command, co
 	for (size_t offset = 0U; offset < length; offset += 64U) {
 		const uint32_t amount = MIN(length - offset, 64U);
 		/* Tell the controller how many bytes we want sent in this transaction */
-		target_mem_write32(target, ESP32_C3_SPI1_DATA_OUT_LEN, ESP32_C3_SPI_DATA_BIT_LEN(amount));
+		target_mem32_write32(target, ESP32_C3_SPI1_DATA_OUT_LEN, ESP32_C3_SPI_DATA_BIT_LEN(amount));
 		/* Configure which transaction stages to use */
 		if (offset)
-			target_mem_write32(target, ESP32_C3_SPI1_USER0, ESP32_C3_SPI_USER0_DATA_OUT);
+			target_mem32_write32(target, ESP32_C3_SPI1_USER0, ESP32_C3_SPI_USER0_DATA_OUT);
 		else
-			target_mem_write32(target, ESP32_C3_SPI1_USER0, enabled_stages);
+			target_mem32_write32(target, ESP32_C3_SPI1_USER0, enabled_stages);
 
 		/* On the final transfer, clear the chip select hold bit, otherwise set it */
 		if (length - offset == amount)
-			target_mem_write32(target, ESP32_C3_SPI1_MISC, misc_reg);
+			target_mem32_write32(target, ESP32_C3_SPI1_MISC, misc_reg);
 		else
-			target_mem_write32(target, ESP32_C3_SPI1_MISC, misc_reg | ESP32_C3_SPI_MISC_CS_HOLD);
+			target_mem32_write32(target, ESP32_C3_SPI1_MISC, misc_reg | ESP32_C3_SPI_MISC_CS_HOLD);
 
 		/* Pack and stage the data to transmit */
-		target_mem_write(target, ESP32_C3_SPI1_DATA, data + offset, amount);
+		target_mem32_write(target, ESP32_C3_SPI1_DATA, data + offset, amount);
 
 		/* Run the transaction */
 		esp32c3_spi_wait_complete(target);
@@ -447,12 +447,13 @@ static inline void esp32c3_spi_run_command(target_s *const target, const uint32_
 	/* Start by setting up the common components of the transaction */
 	const uint32_t enabled_stages = esp32c3_spi_config(target, command, address, 0U);
 	/* Write the stages to execute and run the transaction */
-	target_mem_write32(target, ESP32_C3_SPI1_USER0, enabled_stages);
+	target_mem32_write32(target, ESP32_C3_SPI1_USER0, enabled_stages);
 	esp32c3_spi_wait_complete(target);
 }
 
-static bool esp32c3_mass_erase(target_s *const target)
+static bool esp32c3_mass_erase(target_s *const target, platform_timeout_s *const print_progress)
 {
+	(void)print_progress; /* Use our own timeout for progress */
 	platform_timeout_s timeout;
 	platform_timeout_set(&timeout, 500U);
 	esp32c3_spi_run_command(target, SPI_FLASH_CMD_WRITE_ENABLE, 0U);
@@ -478,18 +479,18 @@ static bool esp32c3_exit_flash_mode(target_s *const target)
 	/* Calculate the length of the region to invalidate and reload */
 	const uint32_t region_length = priv->last_invalidated_sector - ESP32_C3_IBUS_FLASH_BASE;
 	/* Invalidate the i-cache for the required length */
-	target_mem_write32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_ADDR, ESP32_C3_IBUS_FLASH_BASE);
-	target_mem_write32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_SIZE, region_length);
-	target_mem_write32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_CTRL, ESP32_C3_EXTMEM_ICACHE_INVALIDATE);
+	target_mem32_write32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_ADDR, ESP32_C3_IBUS_FLASH_BASE);
+	target_mem32_write32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_SIZE, region_length);
+	target_mem32_write32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_CTRL, ESP32_C3_EXTMEM_ICACHE_INVALIDATE);
 	/* Wait for invalidation to complete */
-	while (!(target_mem_read32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_CTRL) & ESP32_C3_EXTMEM_ICACHE_SYNC_DONE))
+	while (!(target_mem32_read32(target, ESP32_C3_EXTMEM_ICACHE_SYNC_CTRL) & ESP32_C3_EXTMEM_ICACHE_SYNC_DONE))
 		continue;
 	/* Now preload the cache with the new data */
-	target_mem_write32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_ADDR, ESP32_C3_IBUS_FLASH_BASE);
-	target_mem_write32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_SIZE, region_length);
-	target_mem_write32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_CTRL, ESP32_C3_EXTMEM_ICACHE_PRELOAD);
+	target_mem32_write32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_ADDR, ESP32_C3_IBUS_FLASH_BASE);
+	target_mem32_write32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_SIZE, region_length);
+	target_mem32_write32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_CTRL, ESP32_C3_EXTMEM_ICACHE_PRELOAD);
 	/* Wait for preload to complete */
-	while (!(target_mem_read32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_CTRL) & ESP32_C3_EXTMEM_ICACHE_PRELOAD_DONE))
+	while (!(target_mem32_read32(target, ESP32_C3_EXTMEM_ICACHE_PRELOAD_CTRL) & ESP32_C3_EXTMEM_ICACHE_PRELOAD_DONE))
 		continue;
 	target_reset(target);
 	return true;

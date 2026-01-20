@@ -31,9 +31,9 @@
 #include "gdb_if.h"
 #include "gdb_packet.h"
 #include "gdb_main.h"
-#include "gdb_hostio.h"
 #include "target.h"
-#include "target/target_internal.h"
+#include "target_internal.h"
+#include "semihosting.h"
 #include "command.h"
 #include "crc32.h"
 #include "morse.h"
@@ -115,19 +115,6 @@ static void gdb_target_printf(target_controller_s *tc, const char *fmt, va_list 
 target_controller_s gdb_controller = {
 	.destroy_callback = gdb_target_destroy_callback,
 	.printf = gdb_target_printf,
-
-	.open = hostio_open,
-	.close = hostio_close,
-	.read = hostio_read,
-	.write = hostio_write,
-	.lseek = hostio_lseek,
-	.rename = hostio_rename,
-	.unlink = hostio_unlink,
-	.stat = hostio_stat,
-	.fstat = hostio_fstat,
-	.gettimeofday = hostio_gettimeofday,
-	.isatty = hostio_isatty,
-	.system = hostio_system,
 };
 
 /* execute gdb remote command stored in 'pbuf'. returns immediately, no busy waiting. */
@@ -161,7 +148,7 @@ int gdb_main_loop(target_controller_s *tc, char *pbuf, size_t pbuf_size, size_t 
 		}
 		DEBUG_GDB("m packet: addr = %" PRIx32 ", len = %" PRIx32 "\n", addr, len);
 		uint8_t mem[len];
-		if (target_mem_read(cur_target, mem, addr, len))
+		if (target_mem32_read(cur_target, mem, addr, len))
 			gdb_putpacketz("E01");
 		else
 			gdb_putpacket(hexify(pbuf, mem, len), len * 2U);
@@ -191,7 +178,7 @@ int gdb_main_loop(target_controller_s *tc, char *pbuf, size_t pbuf_size, size_t 
 		DEBUG_GDB("M packet: addr = %" PRIx32 ", len = %" PRIx32 "\n", addr, len);
 		uint8_t mem[len];
 		unhexify(mem, pbuf + hex, len);
-		if (target_mem_write(cur_target, addr, mem, len))
+		if (target_mem32_write(cur_target, addr, mem, len))
 			gdb_putpacketz("E01");
 		else
 			gdb_putpacketz("OK");
@@ -283,7 +270,8 @@ int gdb_main_loop(target_controller_s *tc, char *pbuf, size_t pbuf_size, size_t 
 
 	case 'F': /* Semihosting call finished */
 		if (in_syscall)
-			return hostio_reply(tc, pbuf, size);
+			/* Trim off the 'F' before calling semihosting_reply so it doesn't have to skip it */
+			return semihosting_reply(tc, pbuf + 1);
 		else {
 			DEBUG_GDB("*** F packet when not in syscall! '%s'\n", pbuf);
 			gdb_putpacketz("");
@@ -342,7 +330,7 @@ int gdb_main_loop(target_controller_s *tc, char *pbuf, size_t pbuf_size, size_t 
 			break;
 		}
 		DEBUG_GDB("X packet: addr = %" PRIx32 ", len = %" PRIx32 "\n", addr, len);
-		if (target_mem_write(cur_target, addr, pbuf + bin, len))
+		if (target_mem32_write(cur_target, addr, pbuf + bin, len))
 			gdb_putpacketz("E01");
 		else
 			gdb_putpacketz("OK");
@@ -493,7 +481,7 @@ static void exec_q_crc(const char *packet, const size_t length)
 			return;
 		}
 		uint32_t crc;
-		if (!generic_crc32(cur_target, &crc, addr, addr_length))
+		if (!bmd_crc32(cur_target, &crc, addr, addr_length))
 			gdb_putpacketz("E03");
 		else
 			gdb_putpacket_f("C%lx", crc);
@@ -638,7 +626,7 @@ static void handle_v_packet(char *packet, const size_t plen)
 #endif
 		/* Run target program. For us (embedded) this means reset. */
 		if (cur_target) {
-			target_set_cmdline(cur_target, cmdline);
+			target_set_cmdline(cur_target, cmdline, strlen(cmdline));
 			target_reset(cur_target);
 			gdb_putpacketz("T05");
 		} else if (last_target) {
@@ -646,7 +634,7 @@ static void handle_v_packet(char *packet, const size_t plen)
 
 			/* If we were able to attach to the target again */
 			if (cur_target) {
-				target_set_cmdline(cur_target, cmdline);
+				target_set_cmdline(cur_target, cmdline, strlen(cmdline));
 				target_reset(cur_target);
 				morse(NULL, false);
 				gdb_putpacketz("T05");
@@ -755,7 +743,7 @@ void gdb_poll_target(void)
 	}
 
 	/* poll target */
-	target_addr_t watch;
+	target_addr64_t watch;
 	target_halt_reason_e reason = target_halt_poll(cur_target, &watch);
 	if (!reason)
 		return;
