@@ -630,8 +630,8 @@ CONFIG_PARTITION_TABLE_MD5=y
 # Wi-Fi Configuration
 #
 CONFIG_WIFI_SSID="Example SSID"
-CONFIG_WIFI_PASSWORD="examplepass"
-# end of Example Configuration
+CONFIG_WIFI_PASSWORD="Example Password"
+# end of Wi-Fi Configuration
 
 #
 # Compiler options
